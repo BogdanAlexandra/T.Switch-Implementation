@@ -1,0 +1,100 @@
+1 2 3
+
+Student: Bogdan Alexandra-Lăcrămioara
+Grupa: 334CD
+
+--------- Tema1 - Retele Locale ---------
+
+            - Implementare Switch - 
+
+
+Cerința 1.
+--------------------
+
+Funcții auxiliare: 
+    - def is_unicast(dst): verifica daca adresa destinatie este de tip unicast (dst.lower() != "ff:ff:ff:ff:ff:ff")
+
+Notații:
+    - Table: Tabela MAC ce face maparea adresa MAC -> port
+    - interface: portul (interfața) de pe care a venit cadrul de adresa MAC sursă din header-ul Ethernet
+    - interfaces: lista tuturor porturilor de pe switch
+    - dest_mac, src_mac: adresa MAC de destinatie / sursa
+
+Explicații: 
+    In primul rând, verific  dacă adresa de destinație este de tip unicast (adresă individuală), folosind functia is_unicast. În acest caz am verificat dacă adresa destinație se găsește în tabela de comutare, caz in care am trimis cadrul către acel port. 
+    Dacă adresa destinație nu se găsește în tabela de comutare am parcurs toate porturile switch-ului cu excepția portului de intrare actual (if(i != interface)), caz în care am trimis cadrul către acel port.
+    Pentru aceasta cerință am urmat întocmai pseudocodul furnizat în partea teoretică a temei, cu mențiunea ca pentru a trimite un cadru catre un port am folosit functia send_to_link din wrapper.py.
+
+Cerința 2.
+--------------------
+
+Notații:
+    - tagged_frame : cadru cu header-ul de 802.1q (inclusiv tag) 
+    - untagged_frame : cadru fara header-ul de 802.1q
+    - vlan_id: VLAN ID
+
+Explicații:
+    Punctul de plecare a acestei cerințe a fost extragerea datelor din fișierele de configurare ale switchurilor, în configuration_file. Atunci când identificatorul VLAN este -1, semnalizează că cadrul nu este etichetat și, astfel, este necesară o atribuire corespunzătoare a identificatorului VLAN. 
+    Astfel se disting două cazuri:
+    1. Cazul în care vlan_id este -1:
+      În acest scenariu, verific dacă există o configurație VLAN asociată interfeței curente în fișierul de configurare.
+      Dacă interfața nu este trunk (vlan_id != 'T'), atunci creează un cadru nemodificat (untagged_frame) utilizând secțiunile specifice ale cadrului original.
+      Dacă interfața este trunk, atunci creează un cadru etichetat (tagged_frame) adăugând un tag VLAN la începutul cadrului original. Tag-ul este format din valorile specifice 802.1Q pentru a indica tipul de cadru și identificatorul VLAN, data[0:12] + create_vlan_tag(int(vlan_id)) + data[12:].
+      
+    2. Cazul în care vlan_id nu este -1:
+      În această situație, switch-ul știe deja că există un tag VLAN asociat interfeței curente.
+      Verifică dacă interfața nu este trunk (vlan_id != 'T').
+      Dacă interfața nu este trunk, atunci creează un cadru etichetat (tagged_frame) adăugând un tag VLAN la începutul cadrului original.
+      Dacă interfața este trunk, atunci creează un cadru nemodificat (untagged_frame), eliminând tag-ul VLAN de la începutul cadrului original.
+
+    Mai apoi pe scheletul implementat deja la subpunctul anterior, am implementat și cerința aceasta, astfel:
+    În prima parte a codului, când adresa destinație a cadrului este deja cunoscută (prezentă în tabela de comutare a switch-ului), switch-ul decide modul în care să transmită cadru în funcție de configurația interfeței asociate adresei destinație.
+    Dacă interfața asociată adresei destinație este trunk ('T'), switch-ul trimite cadru cu un header 802.1Q (tagged), iar lungimea cadrelor este mărită cu 4 octeți (length + 4). În caz contrar, switch-ul trimite cadru fără un header 802.1Q (untagged), iar lungimea cadrelor este redusă cu 4 octeți (length - 4).
+    În a doua parte a codului, când adresa destinație nu este prezentă în tabela de comutare, switch-ul explorează toate porturile disponibile pentru a găsi destinatarul.
+    Pentru fiecare port în lista de porturi (interfaces), switch-ul decide din nou dacă să transmită cadru cu sau fără etichetă în funcție de configurația interfeței respective. Dacă interfața este trunk('T'), switch-ul trimite cadru cu un header 802.1Q, iar lungimea cadrelor este mărită cu 4 octeți. În caz contrar, switch-ul trimite cadru fără un header 802.1Q, iar lungimea cadrelor este redusă cu 4 octeți.
+
+Cerința 3.
+--------------------
+
+Notații:
+  - port_state: reține starea portului, 'BLOCKING', 'LISTENING'
+  - port_types: reține tipul portului, 'BLOCKED_PORT', 'DESIGNATED_PORT', 'ROOT_PORT'
+  - switch_data: reține root_bridge_ID , root_path_cost , own_bridge_id, ale switch-ului
+
+Funcții auxiliare:
+  - def create_bpdu(root_bridge_ID, root_path_cost, sender_bridge_ID, port_ID):  creează structura cadrelor BDPU 
+  - def add_mac_addresses(destination, source):                                       |
+  - def add_llc_length():                                                             |
+  - def add_llc_header():                                                             |
+  - def add_protocol_identifiers():                                                   |     Creează fiecare element din structura cadrelor BDPU expus mai jos.
+  - def add_bpdu_config(root_bridge_ID, root_path_cost, sender_bridge_ID, port_ID):   |
+  - def add_final_params():     
+  - def is_bdpu_multicast(dst): verifica daca mac-ul destinatie este bdpu:  01:80:c2:00:00:00'                                                |
+
+Structura cadrelor BDPU creată cu def create_bpdu:
+ 
+Size (bytes) 6        6       2           3            4           31
+            DST_MAC|SRC_MAC|LLC_LENGTH|LLC_HEADER|BPDU_HEADER|BPDU_CONFIG
+
+Inițializare:
+    Atunci când am citit datele din fisierele de configurare ale switch-urilor, am setat:
+            switch_data['own_bridge_ID'] = int(priority)
+            switch_data['root_bridge_ID'] = switch_data['own_bridge_ID'] 
+            switch_data['root_path_cost'] = 0
+    Am luat fiecare linie din fisierul de configurare si am verificat fiecare tuplu de forma INTERFACE_NAME, vlan.
+    Dacâ vlan-ul era marcat trunk marcam starea portului ca 'BLOCKING'. Dacă root_bridge_ID si own_bridge_id ale switch-ului erau egale, marcam tipul portului ca 'DESIGNATED_PORT'. În caz contrar, îl marcam ca 'BLOCKED_PORT'. Dacă vlan-ul nu era trunk marcam starea portului ca 'LISTENING'.
+
+
+Explicații:
+    Daca este identificat un cadru BPDU prin adresa multicast MAC destinatie, 01:80:C2:00:00:00, se realizează urmatoarele acțiuni:
+    Dacă adresa root_bridge_ID dintr-un cadru de tip BPDU este mai mică decât adresa root_bridge_ID a switch-ului, switch-ul actual actualizează informațiile despre root bridge, ajustând costul drumului (root_path_cost) și stabilind portul pe care s-a primit BPDU drept noul root_port. În cazul în care switch-ul curent era deja root bridge, toate interfețele care nu sunt destinate gazdelor sunt setate în modul 'BLOCKING', cu excepția root port-ului.
+    Dacă starea root_port-ului este în modul 'BLOCKING', atunci aceasta este actualizată la starea 'LISTENING'.
+    Se actualizează și se trimite noul cadru BPDU la toate celelalte porturi trunk.
+    În cazul în care root_bridge_ID al cadrului BDPU este egal cu root_bridge_ID a switch-ului:
+    Dacă portul curent este root_port și costul primit din BPDU este mai mic decât root_path_cost, atunci root_path_cost este actualizat.
+    Dacă portul nu este root_port, se verifică dacă acesta ar trebui să devină un port designat. Acest lucru se face pentru a asigura că switch-ul curent devine parte din cel mai bun drum către root bridge, și se setează portul ca 'DESIGNATED_PORT' în modul 'LISTENING', dacă este cazul.
+    Dacă adresa BPDU.sender_bridge_ID este egală cu own_bridge_ID, atunci portul curent este setat în modul BLOCKING pentru a evita buclele în rețea.
+    În celelalte cazuri, adică când adresa sender_bridge_ID a cadului BDPU nu este nici root bridge, nici bridge-ul curent, cadrul BPDU este ignorat.
+    Dacă own_bridge_ID este egal cu root_bridge_ID ale swicth - ului, pentru fiecare port de pe bridge, portul respectiv este setat în modul 'DESIGNATED_PORT'.
+
+
